@@ -1143,6 +1143,7 @@ export class PrometheusDatasource
         break;
       }
       case 'ADD_HISTOGRAM_QUANTILE': {
+        // Part of the something was detected + flow.
         expression = `histogram_quantile(0.95, sum(rate(${expression}[$__rate_interval])) by (le))`;
         break;
       }

@@ -1,4 +1,5 @@
 import { cx } from '@emotion/css';
+import { Configuration, OpenAIApi } from 'openai';
 import { LanguageMap, languages as prismLanguages } from 'prismjs';
 import React, { ReactNode } from 'react';
 import { Plugin } from 'slate';
@@ -8,9 +9,11 @@ import { isDataFrame, QueryEditorProps, QueryHint, TimeRange, toLegacyResponseDa
 import { reportInteraction } from '@grafana/runtime/src';
 import {
   BracesPlugin,
+  Button,
   DOMUtil,
   Icon,
   SlatePrism,
+  Spinner,
   SuggestionsState,
   TypeaheadInput,
   TypeaheadOutput,
@@ -31,6 +34,13 @@ import { PromOptions, PromQuery } from '../types';
 
 import { PrometheusMetricsBrowser } from './PrometheusMetricsBrowser';
 import { MonacoQueryFieldWrapper } from './monaco-query-field/MonacoQueryFieldWrapper';
+
+const openAiKey = process.env.REACT_APP_OPENAI_API_KEY;
+const configuration: Configuration = new Configuration({
+  apiKey: openAiKey,
+});
+
+const openai: OpenAIApi = new OpenAIApi(configuration);
 
 export const RECORDING_RULES_GROUP = '__recording_rules__';
 const LAST_USED_LABELS_KEY = 'grafana.datasources.prometheus.browser.labels';
@@ -87,6 +97,10 @@ interface PromQueryFieldState {
   labelBrowserVisible: boolean;
   syntaxLoaded: boolean;
   hint: QueryHint | null;
+  hasError: boolean;
+  aiHelp: string;
+  loadingAiHelp: boolean;
+  showAiHelpModal: boolean;
 }
 
 class PromQueryField extends React.PureComponent<PromQueryFieldProps, PromQueryFieldState> {
@@ -111,6 +125,10 @@ class PromQueryField extends React.PureComponent<PromQueryFieldProps, PromQueryF
       labelBrowserVisible: false,
       syntaxLoaded: false,
       hint: null,
+      hasError: false,
+      aiHelp: '',
+      loadingAiHelp: false,
+      showAiHelpModal: false,
     };
   }
 
@@ -150,6 +168,11 @@ class PromQueryField extends React.PureComponent<PromQueryFieldProps, PromQueryF
 
     if (data && prevProps.data && prevProps.data.series !== data.series) {
       this.refreshHint();
+    }
+    const prevError = (prevProps.data?.errors ?? []).length > 0;
+    const currentError = (this.props.data?.errors ?? []).length > 0;
+    if (prevError !== currentError) {
+      this.setState({ hasError: currentError });
     }
   }
 
@@ -221,6 +244,9 @@ class PromQueryField extends React.PureComponent<PromQueryFieldProps, PromQueryF
         onRunQuery();
       }
     }
+
+    // Reset and close the AI Help section
+    this.setState({ aiHelp: '' });
   };
 
   onClickChooserButton = () => {
@@ -273,6 +299,133 @@ class PromQueryField extends React.PureComponent<PromQueryFieldProps, PromQueryF
 
     return result;
   };
+
+  // AI Help Text
+  showAiHelpText = (aiHelp: string) => {
+    this.setState({ showAiHelpModal: true, aiHelp });
+  };
+  hideAiHelpText = () => {
+    this.setState({ showAiHelpModal: false });
+  };
+
+  acceptAiHelp = () => {
+    const { query, onChange, onRunQuery } = this.props;
+    onChange({ ...query, expr: this.state.aiHelp });
+    onRunQuery();
+    this.setState({ aiHelp: '' });
+  };
+
+  closeAiHelp = () => {
+    this.setState({ aiHelp: '' });
+  };
+
+  applyAiHelp = () => {
+    const { query, onChange, onRunQuery } = this.props;
+    const { aiHelp } = this.state;
+    onChange({ ...query, expr: aiHelp });
+    onRunQuery();
+    this.hideAiHelpText();
+  };
+
+  handleHelpButtonClick = async () => {
+    const PROMPT = `
+You are an AI code assistant in Grafana for the Prometheus data source. The user calls on you by clicking Get AI Help. Adjust the query to run successfully.
+
+You will receive both the query and the error of the user query.
+
+Your response will be placed directly in the user's query field.
+
+Your response MUST be PromQL only, no text
+All PromQL should be correctly formatted and indented. All comments must be prefixed with the \`#\` character.
+
+e.g.
+
+Request:
+\`\`\`
+Query: 
+\`\`\`
+node_context_switches_total,_
+\`\`\`
+Error:
+\`\`\`
+bad_data: 1:28: parse error: unexpected ","
+\`\`\`
+
+# I removed the trailing comma as it was invalid PromQL.
+node_context_switches_total
+`;
+
+    function formatQueryAndError(query: string, error?: string): string {
+      let errorString = '';
+      if (error) {
+        errorString = `
+Error:
+\`\`\`
+${error}
+\`\`\`
+    `;
+      }
+      return `
+Request:
+\`\`\`
+Query: 
+\`\`\`
+${query}
+\`\`\`${errorString}
+  `;
+    }
+    const { query } = this.props;
+    const error = (this.props.data?.errors ?? [])
+      .map((error) => error.message)
+      .filter((value): value is string => value !== undefined)
+      .at(0);
+    console.log('Error:', error);
+
+    try {
+      this.setState({ loadingAiHelp: true });
+      const completion = await openai.createChatCompletion({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: PROMPT },
+          { role: 'assistant', content: formatQueryAndError(query.expr, error) },
+        ],
+      });
+
+      const response = completion.data.choices[0].message?.content ?? query.expr;
+      console.log(response);
+
+      if (response !== undefined) {
+        // Show AI Help modal!
+        this.showAiHelpText(response);
+      }
+    } catch (err) {
+      console.error('Error sending query to third-party system:', err);
+    }
+    this.setState({ loadingAiHelp: false });
+  };
+
+  renderAIHelpButton() {
+    if (this.state.hasError) {
+      return (
+        <div className="query-row-break">
+          <Button onClick={this.handleHelpButtonClick} variant="secondary" disabled={this.state.loadingAiHelp}>
+            {this.state.loadingAiHelp ? (
+              <>
+                <Spinner inline style={{ margin: '5px' }} />
+                Loading help...
+              </>
+            ) : (
+              <>
+                <Icon name="question-circle" style={{ margin: '5px' }} />
+                Get AI Help
+              </>
+            )}
+          </Button>
+        </div>
+      );
+    }
+    return null;
+  }
 
   render() {
     const {
@@ -348,6 +501,26 @@ class PromQueryField extends React.PureComponent<PromQueryFieldProps, PromQueryF
                   </div>
                 </div>
               ) : null}
+              {this.renderAIHelpButton()}
+              {this.state.aiHelp && (
+                <div className="query-row-break">
+                  <h2 style={{ marginTop: '8px' }}>Does this help?</h2>
+                  <pre>{this.state.aiHelp}</pre>
+                  <div>
+                    <Button
+                      onClick={this.acceptAiHelp}
+                      variant="secondary"
+                      type="button"
+                      style={{ marginRight: '10px' }}
+                    >
+                      Accept
+                    </Button>
+                    <Button onClick={this.closeAiHelp} variant="destructive">
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           );
         }}

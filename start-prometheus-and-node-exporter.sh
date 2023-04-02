@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 # Variables
 node_exporter_version="1.3.0"
 prometheus_version="2.34.0"
@@ -9,15 +11,19 @@ prometheus_url="https://github.com/prometheus/prometheus/releases/download/v${pr
 # Create directories
 mkdir -p ~/monitoring/{node_exporter,prometheus}
 
-# Download and install Node Exporter
-curl -sSL $node_exporter_url -o ~/monitoring/node_exporter.tar.gz
-tar -xzf ~/monitoring/node_exporter.tar.gz -C ~/monitoring/node_exporter --strip-components=1
-rm ~/monitoring/node_exporter.tar.gz
+# Check if Node Exporter is already installed
+if [ ! -d "~/monitoring/node_exporter" ]; then
+    curl -sSL $node_exporter_url -o ~/monitoring/node_exporter.tar.gz
+    tar -xzf ~/monitoring/node_exporter.tar.gz -C ~/monitoring/node_exporter --strip-components=1
+    rm ~/monitoring/node_exporter.tar.gz
+fi
 
-# Download and install Prometheus
-curl -sSL $prometheus_url -o ~/monitoring/prometheus.tar.gz
-tar -xzf ~/monitoring/prometheus.tar.gz -C ~/monitoring/prometheus --strip-components=1
-rm ~/monitoring/prometheus.tar.gz
+# Check if Prometheus is already installed
+if [ ! -d "~/monitoring/prometheus" ]; then
+    curl -sSL $prometheus_url -o ~/monitoring/prometheus.tar.gz
+    tar -xzf ~/monitoring/prometheus.tar.gz -C ~/monitoring/prometheus --strip-components=1
+    rm ~/monitoring/prometheus.tar.gz
+fi
 
 # Create a Prometheus config file
 cat > ~/monitoring/prometheus/prometheus.yml <<EOF
@@ -35,6 +41,6 @@ EOF
 nohup ~/monitoring/node_exporter/node_exporter &
 
 # Start Prometheus
-nohup ~/monitoring/prometheus/prometheus --config.file=~/monitoring/prometheus/prometheus.yml &
+nohup ~/monitoring/prometheus/prometheus "--config.file=$HOME/monitoring/prometheus/prometheus.yml" &
 
 echo "Node Exporter and Prometheus server are running."

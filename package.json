@@ -354,6 +354,7 @@
     "moveable": "0.43.1",
     "ol": "7.2.2",
     "ol-ext": "4.0.6",
+    "openai": "^3.2.1",
     "papaparse": "5.3.2",
     "pluralize": "^8.0.0",
     "prismjs": "1.29.0",
