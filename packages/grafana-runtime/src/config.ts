@@ -153,6 +153,7 @@ export class GrafanaBootConfig implements GrafanaConfig {
   rudderstackConfigUrl: undefined;
 
   tokenExpirationDayLimit: undefined;
+  openaiApiKey: undefined;
 
   constructor(options: GrafanaBootConfig) {
     this.bootData = options.bootData;
@@ -176,6 +177,7 @@ export class GrafanaBootConfig implements GrafanaConfig {
       viewersCanEdit: false,
       editorsCanAdmin: false,
       disableSanitizeHtml: false,
+      openaiApiKey: '<empty key>',
     };
 
     merge(this, defaults, options);

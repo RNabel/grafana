@@ -223,6 +223,8 @@ type FrontendSettingsDTO struct {
 
 	PluginsCDNBaseURL string `json:"pluginsCDNBaseURL,omitempty"`
 
+	OpenAiApiKey string `json:"openaiApiKey,omitempty"`
+
 	// Enterprise
 	Licensing     *FrontendSettingsLicensingDTO     `json:"licensing,omitempty"`
 	Whitelabeling *FrontendSettingsWhitelabelingDTO `json:"whitelabeling,omitempty"`

@@ -215,6 +215,7 @@ func (hs *HTTPServer) getFrontendSettings(c *contextmodel.ReqContext) (*dtos.Fro
 		TokenExpirationDayLimit: hs.Cfg.SATokenExpirationDayLimit,
 
 		SnapshotEnabled: hs.Cfg.SnapshotEnabled,
+		OpenAiApiKey:    hs.Cfg.OpenAiApiKey,
 	}
 
 	if hs.Cfg.UnifiedAlerting.Enabled != nil {

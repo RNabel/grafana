@@ -513,6 +513,9 @@ type Cfg struct {
 	GRPCServerTLSConfig *tls.Config
 
 	CustomResponseHeaders map[string]string
+
+	// OpenAi
+	OpenAiApiKey string
 }
 
 // AddChangePasswordLink returns if login form is disabled or not since
@@ -1182,6 +1185,7 @@ func (cfg *Cfg) Load(args CommandLineArgs) error {
 	}
 
 	cfg.LogConfigSources()
+	cfg.OpenAiApiKey = iniFile.Section("openai").Key("api_key").String()
 
 	return nil
 }

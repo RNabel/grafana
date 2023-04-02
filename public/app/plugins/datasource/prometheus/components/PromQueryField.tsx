@@ -6,6 +6,7 @@ import { Plugin } from 'slate';
 import { Editor } from 'slate-react';
 
 import { isDataFrame, QueryEditorProps, QueryHint, TimeRange, toLegacyResponseData } from '@grafana/data';
+import { config } from '@grafana/runtime';
 import { reportInteraction } from '@grafana/runtime/src';
 import {
   BracesPlugin,
@@ -35,7 +36,8 @@ import { PromOptions, PromQuery } from '../types';
 import { PrometheusMetricsBrowser } from './PrometheusMetricsBrowser';
 import { MonacoQueryFieldWrapper } from './monaco-query-field/MonacoQueryFieldWrapper';
 
-const openAiKey = process.env.REACT_APP_OPENAI_API_KEY;
+// TODO: This setting doesn't propagate correctly, hard-code for testing.
+const openAiKey = config.openaiApiKey ?? 'not set';
 const configuration: Configuration = new Configuration({
   apiKey: openAiKey,
 });
